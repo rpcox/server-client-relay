@@ -13,7 +13,7 @@ Simple echo and relay servers
 
 ### echo
 
-                 SERVER                 |            CLIENT           |
+                     SERVER                 |            CLIENT           |
 
      > go run echo.go                       |
      1: 127.0.0.1:2345 <-> 127.0.0.1:39606  | > telnet localhost 2345
@@ -38,7 +38,7 @@ Simple echo and relay servers
 
 ### relay
 
-                     SERVER                 |            CLIENT           |        DESTINATION      |
+                     SERVER                 |            CLIENT           |        DESTINATION
 
      > go run echo.go                       |                             | > nc -lk 3456
      1: 127.0.0.1:2345 <-> 127.0.0.1:40422  | > telnet localhost 2345     |
