@@ -1,3 +1,4 @@
+// TCP client
 package main
 
 import (
@@ -5,52 +6,75 @@ import (
 	"flag"
 	"log"
 	"net"
-	"os"
 	"strconv"
 	"syscall"
 	"time"
 )
 
-func TcpClient(dst string) net.Conn {
-	/*var dialer net.Dialer
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+func TcpClient(tx string, retry, interval int) (net.Conn, error) {
 
-	conn, err := dialer.DialContext(ctx, "tcp", dst)*/
-	conn, err := net.Dial("tcp", dst)
+	var conn net.Conn
+	var err error
 
-	if err != nil {
-		if errors.Is(err, syscall.ECONNREFUSED) {
-			log.Fatal("ECONNREFUSED: ", err)
-		} else {
-			log.Fatal(err)
+	for i := 1; i <= retry; i++ {
+		conn, err = net.Dial("tcp", tx)
+		if err == nil {
+			break
 		}
+
+		if errors.Is(err, syscall.ECONNREFUSED) {
+			log.Printf("attempt %d: ECONNREFUSED: %v\n", i, err)
+			if i == retry {
+				err1 := errors.New("connection attempts exhausted")
+				return nil, err1
+			}
+		} else {
+			return nil, err
+		}
+
+		time.Sleep(time.Duration(interval) * time.Second)
 	}
 
-	return conn
+	return conn, err
 }
 
 func main() {
 	var (
-		serverDst = flag.String("dst-server", "127.0.0.1", "Destination hostname / IP address")
-		portDst   = flag.Int("dst-port", 5000, "Destination port")
+		dst      = flag.String("dst", "127.0.0.1", "Destination hostname or IP address")
+		dport    = flag.Int("dport", 6000, "Destination port")
+		msg      = flag.String("msg", "TCP-Client TEST message", "Repeating message to send")
+		retry    = flag.Int("retry", 3, "Number of times TCP client should attempt to connect")
+		interval = flag.Int("interval", 2, "Number of seconds between retrys")
 	)
 
-	dst := *serverDst + ":" + strconv.Itoa(*portDst)
-	client := TcpClient(dst)
-	log.Println("Sending to ", dst)
+	flag.Parse()
+
+	tx := *dst + ":" + strconv.Itoa(*dport)
+	client, err := TcpClient(tx, *retry, *interval)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Sending to ", tx)
+
+	message := []byte(*msg)
+	message = append(message, '\n')
 
 	for {
-		_, err := client.Write([]byte("TEST\n"))
+		_, err := client.Write(message)
 		if err != nil {
+			// server closed the socket
 			if errors.Is(err, syscall.EPIPE) {
 				log.Printf("EPIPE: %v", err)
+				client.Close()
+				client, err = TcpClient(tx, *retry, *interval)
+				if err != nil {
+					log.Fatal(err)
+				}
 			} else {
-				log.Println(err)
+				log.Fatal(err)
 			}
-			os.Exit(1)
 		}
 		time.Sleep(1 * time.Second)
 	}
 }
-
