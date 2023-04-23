@@ -14,11 +14,8 @@ func PrintLine(conn net.Conn) {
 	b := bufio.NewReader(conn)
 	for {
 		line, err := b.ReadBytes('\n')
-		if err.Error() == "EOF" {
-			log.Printf("client at %v closed connection", conn.RemoteAddr())
-			break
-		} else if err != nil {
-			log.Println("break: ", err)
+		if err != nil {
+			log.Printf("client %v %v", conn.RemoteAddr(), err)
 			break
  		}
 
