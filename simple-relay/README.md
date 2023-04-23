@@ -1,12 +1,12 @@
-## echo-relay
+## relay
 
 Simple relay server
 
-#### Usage
+#### usage
 
     > relay -h
 
-### relay
+### example
 
                      SERVER                 |            CLIENT           |        DESTINATION
 

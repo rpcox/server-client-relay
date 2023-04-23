@@ -1,12 +1,12 @@
-## echo-relay
+## echo
 
 Simple echo server
 
-#### Usage
+#### usage
 
     > echo -h
 
-### echo
+### example
 
                      SERVER                 |            CLIENT           |
 
