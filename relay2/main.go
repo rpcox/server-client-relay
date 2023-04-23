@@ -68,7 +68,7 @@ func Receiver(rx string) (net.Listener, [10]chan net.Conn) {
 			}
 
 			fmt.Printf("%d: %v -> %v\n", i, client.RemoteAddr(), client.LocalAddr())
-			connChan[10%i] <- client
+			connChan[i%10] <- client
 			i++
 		}
 	}()
@@ -76,42 +76,48 @@ func Receiver(rx string) (net.Listener, [10]chan net.Conn) {
 	return l, connChan
 }
 
-func Relay(connChan chan net.Conn, wg *sync.WaitGroup, d TCPDest) {
+func Relay(connChan chan net.Conn, n int, wg *sync.WaitGroup, d TCPDest) {
 	client, err := TcpClient(d)
 	if err != nil {
-		log.Println("relay worker fail: ", err)
+		log.Printf("relay worker[%d] fail to connect: %v", n, err)
 		wg.Done()
 		return
 	}
 
-	for {
-		select {
-		case conn := <-connChan:
-			b := bufio.NewReader(conn)
-			line, err := b.ReadBytes('\n')
-			if err != nil {
-				log.Println("relay worker read error. continue: ", err)
-				conn.Close()
-				continue
-			}
+	log.Printf("relay worker[%d] connected", n)
 
-			log.Print("relay => ", string(line))
-			_, err = client.Write(line)
-			if err != nil {
-				if errors.Is(err, syscall.EPIPE) {
-					log.Printf("EPIPE: %v", err)
+	for conn := range connChan {
+		b := bufio.NewReader(conn)
+		streaming := true
+
+		for streaming {
+			data, err := b.ReadBytes('\n')
+
+			if err == nil {
+				log.Print("relay: ", string(data))
+				_, err = client.Write(data)
+				if err == nil {
+					continue
+				} else {
+					log.Printf("%v: %v", conn.RemoteAddr(), err)
+					conn.Close()
 					client.Close()
+					streaming = false
+					b = nil
 					client, err = TcpClient(d)
 					if err != nil {
-						log.Println("relay worker epipe: unrecoveable: ", err)
+						log.Printf("relay worker[%d] fail to connect: %v", n, err)
 						wg.Done()
-						break
+						return
 					}
-				} else {
-					log.Println("relay worker unknown: ", err)
-					wg.Done()
-					break
+					log.Printf("relay worker[%d] reconnected", n)
 				}
+			} else {
+				log.Printf("%v: %v", conn.RemoteAddr(), err)
+				conn.Close()
+				streaming = false
+				b = nil
+				break
 			}
 		}
 	}
@@ -142,7 +148,7 @@ func main() {
 
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
-		go Relay(connChan[i], &wg, d)
+		go Relay(connChan[i], i, &wg, d)
 	}
 
 	wg.Wait()
